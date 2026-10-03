@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="th" dir="ltr" class="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Globle - พัฒนาโดย เนม วชิรวิทย์</title>
+  <meta name="description" content="เกมทายภูมิศาสตร์ปริศนา: จังหวัดในไทย และ ประเทศทั่วโลก พัฒนาโดย เนม วชิรวิทย์">
+  
+  <!-- Google Fonts: Prompt & Kanit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            thai: ['Kanit', 'Prompt', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Confetti & Tone.js -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <style>
+    body {
+      font-family: 'Kanit', 'Prompt', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    
+    .leaflet-container {
+      background: radial-gradient(circle at 50% 50%, #d8efff 0%, #b2dffc 100%);
+      border-radius: 1rem;
+      outline: none;
+    }
+    .dark .leaflet-container {
+      background: radial-gradient(circle at 50% 50%, #1e293b 0%, #090e17 100%);
+    }
+
+    .leaflet-control-zoom, .leaflet-control-attribution {
+      display: none !important;
+    }
+
+    /* Thailand mode: locked pointer events; World mode: allow dragging */
+    .locked-map .leaflet-pane, .locked-map .leaflet-interactive {
+      cursor: default !important;
+      pointer-events: none !important;
+    }
+    .draggable-map .leaflet-pane, .draggable-map .leaflet-interactive {
+      pointer-events: none !important;
+    }
+
+    .map-card-shadow {
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    .dark .map-card-shadow {
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
+
+  <header class="w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand & Developer Credit -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl font-black tracking-wider text-blue-600 dark:text-sky-400 font-thai">GLOBLE</span>
+          <span id="mode-badge" class="text-xs bg-red-600 text-white font-bold px-2 py-0.5 rounded-full shadow-sm">จังหวัด</span>
+        </div>
+        <div class="hidden sm:block h-5 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+          พัฒนาโดย <span class="text-slate-800 dark:text-slate-200 font-semibold">เนม วชิรวิทย์</span>
+        </div>
+      </div>
+
+      <!-- Mode Selector Pills (Only Thailand and World) -->
+      <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold order-last md:order-none w-full md:w-auto justify-center">
+        <button id="mode-btn-province" class="mode-tab-btn px-4 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-blue-600 dark:text-sky-300 shadow-sm transition" data-mode="province">
+          🇹🇭 จังหวัดในไทย
+        </button>
+        <button id="mode-btn-world" class="mode-tab-btn px-4 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition" data-mode="world">
+          🌍 ประเทศทั่วโลก
+        </button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2">
+        <button id="btn-restart-random" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-700 dark:text-sky-300 font-medium text-xs transition border border-blue-200 dark:border-slate-700 active:scale-95" title="สุ่มเป้าหมายใหม่ทันที">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span class="hidden sm:inline">สุ่มเกมใหม่</span>
+        </button>
+
+        <button id="btn-help" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition" title="วิธีเล่น">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
+
+        <button id="btn-sound" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition" title="เปิด/ปิดเสียง">
+          <svg id="icon-sound-on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          </svg>
+          <svg id="icon-sound-off" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+        </button>
+
+        <button id="btn-stats" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition" title="สถิติการเล่น">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M16 11V3H8v6H2v12h20V11H16zM10 5h4v14h-4V5zm-6 6h4v8H4v-8zm16 8h-4v-6h4v6z"></path>
+          </svg>
+        </button>
+
+        <button id="btn-theme" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition" title="เปลี่ยนโหมดสี">
+          <svg id="theme-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <svg id="theme-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="w-full max-w-7xl mx-auto px-4 py-4 flex-1 flex flex-col lg:flex-row gap-6 items-start">
+    
+    <!-- LEFT SIDE: Map (Locked in Thailand mode, Draggable in World mode) -->
+    <section class="w-full lg:w-3/5 flex flex-col items-center">
+      <div id="map-container-wrapper" class="relative w-full h-[540px] sm:h-[620px] lg:h-[700px] rounded-2xl overflow-hidden border-2 border-slate-300 dark:border-slate-800 map-card-shadow locked-map transition-transform duration-200">
+        <div id="map" class="w-full h-full"></div>
+        
+        <!-- Answer FX Ripple Layer -->
+        <div id="map-fx-overlay" class="absolute inset-0 pointer-events-none z-[1000] overflow-hidden"></div>
+
+        <div id="world-map-hint" class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg text-[11px] pointer-events-none hidden">
+          🖐️ แผนที่โลกสามารถลากเลื่อนและซูมได้
+        </div>
+      </div>
+
+      <!-- Color Heatmap Bar Indicator -->
+      <div class="w-full mt-3 px-1">
+        <div class="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+          <span>❄️ ไกล</span>
+          <span id="heatmap-rule-text" class="font-bold text-rose-600 dark:text-rose-400">🔥 สีแดง = มีพรมแดนติดกับเป้าหมาย (ระยะห่าง 0 กม.)</span>
+          <span>🎉 ถูกต้อง (0 กม.)</span>
+        </div>
+        <div class="h-3 w-full rounded-full flex overflow-hidden border border-slate-300 dark:border-slate-700 shadow-inner">
+          <div class="flex-1 bg-[#cbd5e1]" title="ไกลมาก"></div>
+          <div class="flex-1 bg-[#94a3b8]" title="ไกล"></div>
+          <div class="flex-1 bg-[#facc15]" title="ปานกลาง"></div>
+          <div class="flex-1 bg-[#f59e0b]" title="ค่อนข้างใกล้"></div>
+          <div class="flex-1 bg-[#ea580c]" title="ใกล้มาก"></div>
+          <div class="flex-1 bg-[#dc2626]" title="สีแดง: มีพรมแดนติดกัน!"></div>
+          <div class="w-10 bg-[#16a34a]" title="ถูกต้อง!"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT SIDE: Input Form, Status Message & Guesses History (No direction hints) -->
+    <section class="w-full lg:w-2/5 flex flex-col">
+      <!-- Input Form -->
+      <div id="input-card" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm mb-4 relative z-20 transition-all duration-300">
+        <form id="guess-form" class="flex gap-2 w-full" autocomplete="off">
+          <div class="relative flex-1">
+            <input 
+              type="text" 
+              id="guess-input"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-thai text-base transition-all"
+              placeholder="พิมพ์ชื่อจังหวัด เช่น เชียงใหม่, ยะลา..."
+              autofocus
+            />
+            <div id="autocomplete-list" class="absolute top-full left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 hidden"></div>
+          </div>
+          <button 
+            type="submit" 
+            id="btn-submit"
+            class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-medium rounded-xl shadow transition duration-150 flex items-center justify-center font-thai shrink-0"
+          >
+            ทาย
+          </button>
+        </form>
+
+        <!-- Status Message & Floating Hit Toast -->
+        <div class="relative mt-3 min-h-[28px] flex items-center justify-center">
+          <div id="status-message" class="text-center text-sm font-medium text-slate-600 dark:text-slate-400 transition-all duration-200">
+            พิมพ์ชื่อเพื่อเริ่มทาย (เกมสุ่มใหม่ตลอดเวลา)
+          </div>
+          <!-- Dynamic Floating Floating Badge -->
+          <div id="guess-floating-badge" class="absolute -top-3 transform scale-90 opacity-0 pointer-events-none transition-all duration-500 font-bold px-3 py-1 rounded-full text-xs shadow-lg text-white"></div>
+        </div>
+      </div>
+
+      <!-- Guesses History Section -->
+      <div class="flex items-center justify-between mb-2 px-1">
+        <h2 class="text-sm font-bold tracking-wide text-slate-700 dark:text-slate-300">
+          ประวัติการทาย (<span id="guess-count" class="text-blue-600 dark:text-sky-400">0</span> ครั้ง)
+        </h2>
+        <div class="text-xs text-slate-500">
+          เรียงตาม: <button id="btn-toggle-sort" class="text-blue-600 dark:text-sky-400 font-medium underline">ระยะทางใกล้สุด (บนสุด)</button>
+        </div>
+      </div>
+
+      <!-- Guesses Container -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex-1 min-h-[380px] max-h-[580px] flex flex-col">
+        <div id="guesses-container" class="divide-y divide-slate-100 dark:divide-slate-800/80 overflow-y-auto flex-1">
+          <div id="empty-guesses-placeholder" class="py-16 text-center text-slate-400 dark:text-slate-500 text-sm">
+            <span class="block text-3xl mb-2">🗺️</span>
+            ยังไม่มีข้อมูลการทาย<br>พิมพ์ชื่อในช่องด้านบนได้เลย!
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="w-full py-4 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 mt-auto">
+    <p class="font-medium text-slate-700 dark:text-slate-300">
+      Globle &bull; เว็บพัฒนาโดย <span class="text-blue-600 dark:text-sky-400 font-bold">เนม วชิรวิทย์</span>
+    </p>
+    <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+      ระบบสุ่มตลอดเวลา &bull; สีแดงจัดเฉพาะจังหวัด/ประเทศที่มีพรมแดนติดกับเป้าหมายเท่านั้น
+    </p>
+  </footer>
+
+  <!-- MODALS -->
+  <!-- 1. Help Modal -->
+  <div id="modal-help" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-slate-900 max-w-md w-full rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 relative max-h-[90vh] overflow-y-auto">
+      <button class="modal-close absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg">✕</button>
+      <h3 class="text-xl font-bold mb-3 text-slate-800 dark:text-white flex items-center gap-2">
+        <span>🧭</span> วิธีการเล่น Globle
+      </h3>
+      <div class="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+        <p>เป้าหมายคือการหา <strong>"พื้นที่ปริศนา"</strong> ในจำนวนครั้งที่น้อยที่สุด!</p>
+        <div class="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs space-y-1 text-rose-900 dark:text-rose-200">
+          <p class="font-bold">⚠️ กฎระยะทางตามหลักภูมิศาสตร์:</p>
+          <p><strong>พื้นที่ที่มีพรมแดนติดกันจะมีระยะห่างเป็น 0 กม. และแสดงผลเป็นสีแดงจัดเสมอ!</strong></p>
+        </div>
+
+        <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl space-y-2 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-[#dc2626] inline-block shrink-0"></span>
+            <span><strong>สีแดง (0 กม.):</strong> มีพรมแดนสัมผัส/ติดกับเป้าหมายโดยตรง</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-[#ea580c] inline-block shrink-0"></span>
+            <span><strong>สีส้มเข้ม:</strong> ใกล้มาก แต่ไม่ได้ติดแดน</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-[#f59e0b] inline-block shrink-0"></span>
+            <span><strong>สีส้ม:</strong> ระยะปานกลางค่อนข้างใกล้</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-[#facc15] inline-block shrink-0"></span>
+            <span><strong>สีเหลือง:</strong> ระยะปานกลาง</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-[#94a3b8] inline-block shrink-0"></span>
+            <span><strong>สีเทา:</strong> ไกล</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-[#cbd5e1] inline-block shrink-0"></span>
+            <span><strong>สีฟ้าเทา:</strong> ห่างไกลมาก</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-[#16a34a] inline-block shrink-0"></span>
+            <span><strong>สีเขียว:</strong> ถูกต้อง! 🎉</span>
+          </div>
+        </div>
+      </div>
+      <button class="modal-close mt-5 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition">
+        เริ่มเล่นเลย!
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. Statistics Modal -->
+  <div id="modal-stats" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-slate-900 max-w-md w-full rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 relative max-h-[90vh] overflow-y-auto">
+      <button class="modal-close absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg">✕</button>
+      <h3 class="text-xl font-bold mb-4 text-slate-800 dark:text-white text-center flex items-center justify-center gap-2">
+        <span>📊</span> สถิติการเล่น (<span id="stat-mode-label">จังหวัด</span>)
+      </h3>
+      
+      <div class="grid grid-cols-4 gap-2 text-center mb-6">
+        <div class="bg-slate-100 dark:bg-slate-800 p-2.5 rounded-xl">
+          <div id="stat-played" class="text-2xl font-bold text-blue-600 dark:text-sky-400">0</div>
+          <div class="text-[11px] text-slate-500">เล่นทั้งหมด</div>
+        </div>
+        <div class="bg-slate-100 dark:bg-slate-800 p-2.5 rounded-xl">
+          <div id="stat-winrate" class="text-2xl font-bold text-blue-600 dark:text-sky-400">0%</div>
+          <div class="text-[11px] text-slate-500">ชนะ (%)</div>
+        </div>
+        <div class="bg-slate-100 dark:bg-slate-800 p-2.5 rounded-xl">
+          <div id="stat-streak" class="text-2xl font-bold text-blue-600 dark:text-sky-400">0</div>
+          <div class="text-[11px] text-slate-500">ชนะต่อเนื่อง</div>
+        </div>
+        <div class="bg-slate-100 dark:bg-slate-800 p-2.5 rounded-xl">
+          <div id="stat-maxstreak" class="text-2xl font-bold text-blue-600 dark:text-sky-400">0</div>
+          <div class="text-[11px] text-slate-500">สถิติสูงสุด</div>
+        </div>
+      </div>
+
+      <div class="border-t border-slate-200 dark:border-slate-800 pt-4">
+        <div class="flex items-center justify-between text-xs text-slate-500 mb-2">
+          <span>จำนวนการทายเฉลี่ย</span>
+          <span id="stat-avg-guesses" class="font-bold text-slate-800 dark:text-slate-200">0 ครั้ง</span>
+        </div>
+      </div>
+      <button class="modal-close mt-5 w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-medium rounded-xl transition">
+        ปิด
+      </button>
+    </div>
+  </div>
+
+  <!-- 3. Win Modal (Victory Modal) -->
+  <div id="modal-win" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-slate-900 max-w-sm w-full rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-center relative">
+      <button class="modal-close absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg">✕</button>
+      <div class="text-5xl mb-3">🎉</div>
+      <h3 class="text-2xl font-black text-slate-900 dark:text-white mb-1 font-thai">ยินดีด้วย!</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4 font-thai">
+        คุณค้นพบพื้นที่ปริศนาสำเร็จ: <br>
+        <span id="win-province-name" class="font-bold text-emerald-600 dark:text-emerald-400 text-lg"></span>
+      </p>
+      
+      <div class="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-4 rounded-xl mb-5">
+        <div class="text-xs text-slate-400 font-medium mb-1">จำนวนครั้งที่ทาย</div>
+        <div id="win-guess-count" class="text-3xl font-extrabold text-blue-600 dark:text-sky-400">0</div>
+      </div>
+
+      <div class="space-y-2">
+        <button id="btn-share" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-semibold rounded-xl shadow transition flex items-center justify-center gap-2 font-thai">
+          <span>📋</span> คัดลอกผลการเล่น
+        </button>
+        <button id="btn-play-again" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium rounded-xl transition font-thai">
+          🔄 สุ่มเล่นรอบใหม่
+        </button>
+      </div>
+
+      <div id="copy-toast" class="hidden mt-3 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+        ✓ คัดลอกผลการเล่นลงคลิปบอร์ดเรียบร้อยแล้ว!
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* ... existing styles ... */
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.2);
+        opacity: 0.9;
+      }
+      80% {
+        opacity: 0.4;
+      }
+      100% {
+        transform: scale(3.5);
+        opacity: 0;
+      }
+    }
+    .fx-ripple {
+      animation: pulse-ring 1.2s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+    }
+
+    @keyframes shake-fx {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    .shake-anim {
+      animation: shake-fx 0.4s ease-in-out;
+    }
+
+    @keyframes pop-entry {
+      0% { transform: scale(0.92); opacity: 0; }
+      70% { transform: scale(1.02); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .guess-row-anim {
+      animation: pop-entry 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+
+  <script>
+    // Current Game Mode: 'province' | 'world'
+    let currentMode = 'province';
+
+    // 1. DATASET: 77 Provinces of Thailand
+    const THAILAND_PROVINCES = [
+      { id: "BKK", th: "กรุงเทพมหานคร", en: "Bangkok", lat: 13.7563, lon: 100.5018, region: "กลาง" },
+      { id: "SPK", th: "สมุทรปราการ", en: "Samut Prakan", lat: 13.5991, lon: 100.5998, region: "กลาง" },
+      { id: "NBI", th: "นนทบุรี", en: "Nonthaburi", lat: 13.8621, lon: 100.5144, region: "กลาง" },
+      { id: "PTE", th: "ปทุมธานี", en: "Pathum Thani", lat: 14.0208, lon: 100.5250, region: "กลาง" },
+      { id: "AYA", th: "พระนครศรีอยุธยา", en: "Phra Nakhon Si Ayutthaya", lat: 14.3532, lon: 100.5684, region: "กลาง" },
+      { id: "ATG", th: "อ่างทอง", en: "Ang Thong", lat: 14.5896, lon: 100.4550, region: "กลาง" },
+      { id: "LBR", th: "ลพบุรี", en: "Lop Buri", lat: 14.7995, lon: 100.6534, region: "กลาง" },
+      { id: "SBR", th: "สิงห์บุรี", en: "Sing Buri", lat: 14.8878, lon: 100.4048, region: "กลาง" },
+      { id: "CNT", th: "ชัยนาท", en: "Chai Nat", lat: 15.1852, lon: 100.1252, region: "กลาง" },
+      { id: "SRI", th: "สระบุรี", en: "Saraburi", lat: 14.5289, lon: 100.9101, region: "กลาง" },
+      { id: "CBI", th: "ชลบุรี", en: "Chon Buri", lat: 13.3611, lon: 100.9847, region: "ตะวันออก" },
+      { id: "RYG", th: "ระยอง", en: "Rayong", lat: 12.6815, lon: 101.2816, region: "ตะวันออก" },
+      { id: "CTI", th: "จันทบุรี", en: "Chanthaburi", lat: 12.6114, lon: 102.1039, region: "ตะวันออก" },
+      { id: "TRT", th: "ตราด", en: "Trat", lat: 12.2428, lon: 102.5175, region: "ตะวันออก" },
+      { id: "CCO", th: "ฉะเชิงเทรา", en: "Chachoengsao", lat: 13.6904, lon: 101.0780, region: "ตะวันออก" },
+      { id: "PRI", th: "ปราจีนบุรี", en: "Prachin Buri", lat: 14.0510, lon: 101.3734, region: "ตะวันออก" },
+      { id: "NYK", th: "นครนายก", en: "Nakhon Nayok", lat: 14.2069, lon: 101.2131, region: "กลาง" },
+      { id: "SKW", th: "สระแก้ว", en: "Sa Kaeo", lat: 13.8140, lon: 102.0718, region: "ตะวันออก" },
+      { id: "NMA", th: "นครราชสีมา", en: "Nakhon Ratchasima", lat: 14.9799, lon: 102.0978, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "BRM", th: "บุรีรัมย์", en: "Buri Ram", lat: 14.9930, lon: 103.1029, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "SRN", th: "สุรินทร์", en: "Surin", lat: 14.8818, lon: 103.4936, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "SSK", th: "ศรีสะเกษ", en: "Si Sa Ket", lat: 15.1186, lon: 104.3220, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "UBN", th: "อุบลราชธานี", en: "Ubon Ratchathani", lat: 15.2448, lon: 104.8473, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "YST", th: "ยโสธร", en: "Yasothon", lat: 15.7926, lon: 104.1453, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "CPM", th: "ชัยภูมิ", en: "Chaiyaphum", lat: 15.8105, lon: 102.0288, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "ACR", th: "อำนาจเจริญ", en: "Amnat Charoen", lat: 15.8585, lon: 104.6298, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "BKN", th: "บึงกาฬ", en: "Bueng Kan", lat: 18.3619, lon: 103.6531, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "NBP", th: "หนองบัวลำภู", en: "Nong Bua Lam Phu", lat: 17.2044, lon: 102.4407, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "KKN", th: "ขอนแก่น", en: "Khon Kaen", lat: 16.4419, lon: 102.8360, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "UDN", th: "อุดรธานี", en: "Udon Thani", lat: 17.4138, lon: 102.7872, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "LEI", th: "เลย", en: "Loei", lat: 17.4860, lon: 101.7223, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "NKI", th: "หนองคาย", en: "Nong Khai", lat: 17.8783, lon: 102.7420, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "MKM", th: "มหาสารคาม", en: "Maha Sarakham", lat: 16.1853, lon: 103.3007, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "RET", th: "ร้อยเอ็ด", en: "Roi Et", lat: 16.0538, lon: 103.6520, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "KSN", th: "กาฬสินธุ์", en: "Kalasin", lat: 16.4322, lon: 103.5065, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "SNK", th: "สกลนคร", en: "Sakon Nakhon", lat: 17.1664, lon: 104.1486, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "NPM", th: "นครพนม", en: "Nakhon Phanom", lat: 17.3998, lon: 104.7695, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "MDH", th: "มุกดาหาร", en: "Mukdahan", lat: 16.5436, lon: 104.7235, region: "ตะวันออกเฉียงเหนือ" },
+      { id: "CMI", th: "เชียงใหม่", en: "Chiang Mai", lat: 18.7883, lon: 98.9853, region: "เหนือ" },
+      { id: "LPN", th: "ลำพูน", en: "Lamphun", lat: 18.5745, lon: 99.0087, region: "เหนือ" },
+      { id: "LPG", th: "ลำปาง", en: "Lampang", lat: 18.2888, lon: 99.4928, region: "เหนือ" },
+      { id: "UTD", th: "อุตรดิตถ์", en: "Uttaradit", lat: 17.6201, lon: 100.0993, region: "เหนือ" },
+      { id: "PRE", th: "แพร่", en: "Phrae", lat: 18.1446, lon: 100.1410, region: "เหนือ" },
+      { id: "NAN", th: "น่าน", en: "Nan", lat: 18.7838, lon: 100.7782, region: "เหนือ" },
+      { id: "PYO", th: "พะเยา", en: "Phayao", lat: 19.1664, lon: 99.9022, region: "เหนือ" },
+      { id: "CRI", th: "เชียงราย", en: "Chiang Rai", lat: 19.9072, lon: 99.8325, region: "เหนือ" },
+      { id: "MSN", th: "แม่ฮ่องสอน", en: "Mae Hong Son", lat: 19.3020, lon: 97.9654, region: "เหนือ" },
+      { id: "NSN", th: "นครสวรรค์", en: "Nakhon Sawan", lat: 15.6930, lon: 100.1226, region: "กลาง" },
+      { id: "UTI", th: "อุทัยธานี", en: "Uthai Thani", lat: 15.3835, lon: 100.0245, region: "กลาง" },
+      { id: "KPT", th: "กำแพงเพชร", en: "Kamphaeng Phet", lat: 16.4828, lon: 99.5227, region: "กลาง" },
+      { id: "TAK", th: "ตาก", en: "Tak", lat: 16.8839, lon: 99.1258, region: "ตะวันตก" },
+      { id: "STI", th: "สุโขทัย", en: "Sukhothai", lat: 17.0056, lon: 99.8264, region: "กลาง" },
+      { id: "PLK", th: "พิษณุโลก", en: "Phitsanulok", lat: 16.8211, lon: 100.2659, region: "กลาง" },
+      { id: "PCT", th: "พิจิตร", en: "Phichit", lat: 16.4429, lon: 100.3490, region: "กลาง" },
+      { id: "PNB", th: "เพชรบูรณ์", en: "Phetchabun", lat: 16.4190, lon: 101.1567, region: "กลาง" },
+      { id: "RBR", th: "ราชบุรี", en: "Ratchaburi", lat: 13.5283, lon: 99.8134, region: "ตะวันตก" },
+      { id: "KRI", th: "กาญจนบุรี", en: "Kanchanaburi", lat: 14.0228, lon: 99.5328, region: "ตะวันตก" },
+      { id: "SPB", th: "สุพรรณบุรี", en: "Suphan Buri", lat: 14.4745, lon: 100.1177, region: "กลาง" },
+      { id: "NPT", th: "นครปฐม", en: "Nakhon Pathom", lat: 13.8196, lon: 100.0601, region: "กลาง" },
+      { id: "SKN", th: "สมุทรสาคร", en: "Samut Sakhon", lat: 13.5475, lon: 100.2744, region: "กลาง" },
+      { id: "SKM", th: "สมุทรสงคราม", en: "Samut Songkhram", lat: 13.4098, lon: 99.9990, region: "กลาง" },
+      { id: "PBI", th: "เพชรบุรี", en: "Phetchaburi", lat: 13.1114, lon: 99.9391, region: "ตะวันตก" },
+      { id: "PKN", th: "ประจวบคีรีขันธ์", en: "Prachuap Khiri Khan", lat: 11.8124, lon: 99.7972, region: "ตะวันตก" },
+      { id: "NRT", th: "นครศรีธรรมราช", en: "Nakhon Si Thammarat", lat: 8.4304, lon: 99.9631, region: "ใต้" },
+      { id: "KBI", th: "กระบี่", en: "Krabi", lat: 8.0863, lon: 98.9063, region: "ใต้" },
+      { id: "PNA", th: "พังงา", en: "Phangnga", lat: 8.4501, lon: 98.5255, region: "ใต้" },
+      { id: "PKT", th: "ภูเก็ต", en: "Phuket", lat: 7.8804, lon: 98.3923, region: "ใต้" },
+      { id: "SNI", th: "สุราษฎร์ธานี", en: "Surat Thani", lat: 9.1382, lon: 99.3215, region: "ใต้" },
+      { id: "RNG", th: "ระนอง", en: "Ranong", lat: 9.9529, lon: 98.6348, region: "ใต้" },
+      { id: "CPN", th: "ชุมพร", en: "Chumphon", lat: 10.4930, lon: 99.1800, region: "ใต้" },
+      { id: "SKL", th: "สงขลา", en: "Songkhla", lat: 7.1898, lon: 100.5954, region: "ใต้" },
+      { id: "STN", th: "สตูล", en: "Satun", lat: 6.6238, lon: 100.0674, region: "ใต้" },
+      { id: "TRG", th: "ตรัง", en: "Trang", lat: 7.5594, lon: 99.6114, region: "ใต้" },
+      { id: "PLG", th: "พัทลุง", en: "Phatthalung", lat: 7.6167, lon: 100.0740, region: "ใต้" },
+      { id: "PTN", th: "ปัตตานี", en: "Pattani", lat: 6.8675, lon: 101.2501, region: "ใต้" },
+      { id: "YLA", th: "ยะลา", en: "Yala", lat: 6.5411, lon: 101.2804, region: "ใต้" },
+      { id: "NWT", th: "นราธิวาส", en: "Narathiwat", lat: 6.4255, lon: 101.8253, region: "ใต้" }
+    ];
+
+    const PROVINCE_NEIGHBORS = {
+      "STN": ["TRG", "PLG", "SKL"],
+      "TRG": ["KBI", "NRT", "PLG", "STN"],
+      "PLG": ["NRT", "TRG", "STN", "SKL"],
+      "SKL": ["PLG", "NRT", "STN", "PTN", "YLA"],
+      "PTN": ["SKL", "YLA", "NWT"],
+      "YLA": ["SKL", "PTN", "NWT"],
+      "NWT": ["PTN", "YLA"],
+      "KBI": ["PNA", "SNI", "NRT", "TRG", "PKT"],
+      "PKT": ["PNA"],
+      "PNA": ["RNG", "SNI", "KBI", "PKT"],
+      "SNI": ["CPN", "RNG", "PNA", "KBI", "NRT"],
+      "NRT": ["SNI", "KBI", "TRG", "PLG", "SKL"],
+      "RNG": ["CPN", "SNI", "PNA"],
+      "CPN": ["PKN", "RNG", "SNI"],
+      "PKN": ["CPN", "PBI"],
+      "PBI": ["PKN", "RBR", "SKM"],
+      "RBR": ["KRI", "SPB", "NPT", "SKM", "PBI"],
+      "KRI": ["TAK", "UTI", "SPB", "RBR"],
+      "TAK": ["MSN", "CMI", "LPG", "SBR", "UTD", "STI", "KPT", "NSN", "UTI", "KRI"],
+      "BKK": ["NBI", "PTE", "CCO", "SPK", "SKN"],
+      "SPK": ["BKK", "CCO"],
+      "NBI": ["BKK", "PTE", "AYA", "NPT"],
+      "PTE": ["BKK", "NBI", "AYA", "SRI", "NYK", "CCO"],
+      "AYA": ["NBI", "SPB", "ATG", "LBR", "SRI", "PTE"],
+      "ATG": ["SPB", "SBR", "LBR", "AYA"],
+      "SBR": ["CNT", "LBR", "ATG", "SPB"],
+      "LBR": ["PCT", "PNB", "NSN", "CNT", "SBR", "ATG", "AYA", "SRI", "NMA", "CPM"],
+      "SRI": ["LBR", "NMA", "NYK", "PTE", "AYA"],
+      "CNT": ["NSN", "UTI", "SPB", "SBR"],
+      "UTI": ["TAK", "KPT", "NSN", "CNT", "KRI"],
+      "KPT": ["TAK", "STI", "PLK", "PCT", "NSN", "UTI"],
+      "NSN": ["KPT", "PCT", "PNB", "LBR", "CNT", "UTI", "TAK"],
+      "STI": ["PRE", "UTD", "PLK", "KPT", "TAK"],
+      "PLK": ["STI", "UTD", "LEI", "PNB", "PCT"],
+      "PCT": ["PLK", "PNB", "NSN", "KPT"],
+      "PNB": ["LEI", "CPM", "LBR", "NSN", "PCT", "PLK"],
+      "SPB": ["CNT", "SBR", "ATG", "AYA", "NPT", "RBR", "KRI", "UTI"],
+      "NPT": ["SPB", "AYA", "NBI", "BKK", "SKN", "RBR"],
+      "SKN": ["BKK", "NPT", "RBR", "SKM"],
+      "SKM": ["SKN", "RBR", "PBI"],
+      "NYK": ["SRI", "NMA", "PRI", "CCO", "PTE"],
+      "CCO": ["BKK", "SPK", "PTE", "NYK", "PRI", "SKW", "CTI", "CBI"],
+      "PRI": ["NYK", "NMA", "SKW", "CCO"],
+      "SKW": ["PRI", "NMA", "BRM", "CTI", "CCO"],
+      "CBI": ["CCO", "RYG", "CTI"],
+      "RYG": ["CBI", "CTI"],
+      "CTI": ["RYG", "CBI", "CCO", "SKW", "TRT"],
+      "TRT": ["CTI"],
+      "CMI": ["CRI", "PYO", "LPG", "LPN", "TAK", "MSN"],
+      "MSN": ["CMI", "TAK"],
+      "LPN": ["CMI", "LPG"],
+      "LPG": ["CRI", "PYO", "PRE", "UTD", "TAK", "LPN", "CMI"],
+      "CRI": ["CMI", "PYO"],
+      "PYO": ["CRI", "CMI", "LPG", "PRE", "NAN"],
+      "NAN": ["PYO", "PRE", "UTD"],
+      "PRE": ["PYO", "NAN", "UTD", "STI", "LPG"],
+      "UTD": ["NAN", "PRE", "STI", "PLK", "LEI", "LPG"],
+      "NMA": ["CPM", "KKN", "BRM", "SKW", "PRI", "NYK", "SRI", "LBR"],
+      "BRM": ["NMA", "KKN", "MKM", "RET", "SRN", "SKW"],
+      "SRN": ["BRM", "RET", "SSK"],
+      "SSK": ["SRN", "RET", "YST", "UBN"],
+      "UBN": ["SSK", "YST", "ACR"],
+      "YST": ["RET", "MKM", "ACR", "UBN", "SSK"],
+      "CPM": ["PNB", "LEI", "NBP", "KKN", "NMA", "LBR"],
+      "KKN": ["LEI", "UDN", "NBP", "KSN", "MKM", "BRM", "NMA", "CPM"],
+      "MKM": ["KKN", "KSN", "RET", "BRM"],
+      "RET": ["KSN", "MKM", "SRN", "SSK", "YST"],
+      "KSN": ["UDN", "SNK", "MDH", "RET", "MKM", "KKN"],
+      "SNK": ["BKN", "NPM", "MDH", "KSN", "UDN", "NKI"],
+      "NPM": ["BKN", "SNK", "MDH"],
+      "MDH": ["SNK", "NPM", "ACR", "KSN"],
+      "ACR": ["MDH", "UBN", "YST"],
+      "LEI": ["UTD", "PLK", "PNB", "CPM", "KKN", "NBP", "UDN", "NKI"],
+      "NBP": ["LEI", "UDN", "KKN"],
+      "UDN": ["NKI", "BKN", "SNK", "KSN", "KKN", "NBP", "LEI"],
+      "NKI": ["LEI", "UDN", "BKN"],
+      "BKN": ["NKI", "SNK", "NPM"]
+    };
+
+    // 2. DATASET: World Countries (50+ Major Countries)
+    const WORLD_COUNTRIES = [
+      { id: "THA", th: "ไทย", en: "Thailand", lat: 15.87, lon: 100.99, region: "เอเชีย" },
+      { id: "LAO", th: "ลาว", en: "Laos", lat: 19.85, lon: 102.49, region: "เอเชีย" },
+      { id: "MMR", th: "พม่า", en: "Myanmar", lat: 21.91, lon: 95.95, region: "เอเชีย" },
+      { id: "KHM", th: "กัมพูชา", en: "Cambodia", lat: 12.56, lon: 104.99, region: "เอเชีย" },
+      { id: "MYS", th: "มาเลเซีย", en: "Malaysia", lat: 4.21, lon: 101.97, region: "เอเชีย" },
+      { id: "VNM", th: "เวียดนาม", en: "Vietnam", lat: 14.05, lon: 108.27, region: "เอเชีย" },
+      { id: "SGP", th: "สิงคโปร์", en: "Singapore", lat: 1.35, lon: 103.81, region: "เอเชีย" },
+      { id: "IDN", th: "อินโดนีเซีย", en: "Indonesia", lat: -0.78, lon: 113.92, region: "เอเชีย" },
+      { id: "PHL", th: "ฟิลิปปินส์", en: "Philippines", lat: 12.87, lon: 121.77, region: "เอเชีย" },
+      { id: "CHN", th: "จีน", en: "China", lat: 35.86, lon: 104.19, region: "เอเชีย" },
+      { id: "JPN", th: "ญี่ปุ่น", en: "Japan", lat: 36.20, lon: 138.25, region: "เอเชีย" },
+      { id: "KOR", th: "เกาหลีใต้", en: "South Korea", lat: 35.90, lon: 127.76, region: "เอเชีย" },
+      { id: "IND", th: "อินเดีย", en: "India", lat: 20.59, lon: 78.96, region: "เอเชีย" },
+      { id: "RUS", th: "รัสเซีย", en: "Russia", lat: 61.52, lon: 105.31, region: "ยุโรป/เอเชีย" },
+      { id: "AUS", th: "ออสเตรเลีย", en: "Australia", lat: -25.27, lon: 133.77, region: "โอเชียเนีย" },
+      { id: "NZL", th: "นิวซีแลนด์", en: "New Zealand", lat: -40.90, lon: 174.88, region: "โอเชียเนีย" },
+      { id: "GBR", th: "สหราชอาณาจักร", en: "United Kingdom", lat: 55.37, lon: -3.43, region: "ยุโรป" },
+      { id: "FRA", th: "ฝรั่งเศส", en: "France", lat: 46.22, lon: 2.21, region: "ยุโรป" },
+      { id: "DEU", th: "เยอรมนี", en: "Germany", lat: 51.16, lon: 10.45, region: "ยุโรป" },
+      { id: "ITA", th: "อิตาลี", en: "Italy", lat: 41.87, lon: 12.56, region: "ยุโรป" },
+      { id: "ESP", th: "สเปน", en: "Spain", lat: 40.46, lon: -3.74, region: "ยุโรป" },
+      { id: "PRT", th: "โปรตุเกส", en: "Portugal", lat: 39.39, lon: -8.22, region: "ยุโรป" },
+      { id: "CHE", th: "สวิตเซอร์แลนด์", en: "Switzerland", lat: 46.81, lon: 8.22, region: "ยุโรป" },
+      { id: "NLD", th: "เนเธอร์แลนด์", en: "Netherlands", lat: 52.13, lon: 5.29, region: "ยุโรป" },
+      { id: "BEL", th: "เบลเยียม", en: "Belgium", lat: 50.50, lon: 4.46, region: "ยุโรป" },
+      { id: "SWE", th: "สวีเดน", en: "Sweden", lat: 60.12, lon: 18.64, region: "ยุโรป" },
+      { id: "NOR", th: "นอร์เวย์", en: "Norway", lat: 60.47, lon: 8.46, region: "ยุโรป" },
+      { id: "FIN", th: "ฟินแลนด์", en: "Finland", lat: 61.92, lon: 25.74, region: "ยุโรป" },
+      { id: "USA", th: "สหรัฐอเมริกา", en: "United States", lat: 37.09, lon: -95.71, region: "อเมริกาเหนือ" },
+      { id: "CAN", th: "แคนาดา", en: "Canada", lat: 56.13, lon: -106.34, region: "อเมริกาเหนือ" },
+      { id: "MEX", th: "เม็กซิโก", en: "Mexico", lat: 23.63, lon: -102.55, region: "อเมริกาเหนือ" },
+      { id: "BRA", th: "บราซิล", en: "Brazil", lat: -14.23, lon: -51.92, region: "อเมริกาใต้" },
+      { id: "ARG", th: "อาร์เจนตินา", en: "Argentina", lat: -38.41, lon: -63.61, region: "อเมริกาใต้" },
+      { id: "CHL", th: "ชิลี", en: "Chile", lat: -35.67, lon: -71.54, region: "อเมริกาใต้" },
+      { id: "EGY", th: "อียิปต์", en: "Egypt", lat: 26.82, lon: 30.80, region: "แอฟริกา" },
+      { id: "ZAF", th: "แอฟริกาใต้", en: "South Africa", lat: -30.55, lon: 22.93, region: "แอฟริกา" },
+      { id: "TUR", th: "ตุรกี", en: "Turkey", lat: 38.96, lon: 35.24, region: "เอเชีย/ยุโรป" },
+      { id: "SAU", th: "ซาอุดีอาระเบีย", en: "Saudi Arabia", lat: 23.88, lon: 45.07, region: "ตะวันออกกลาง" },
+      { id: "ARE", th: "สหรัฐอาหรับเอมิเรตส์", en: "UAE", lat: 23.42, lon: 53.84, region: "ตะวันออกกลาง" },
+      { id: "IRN", th: "อิหร่าน", en: "Iran", lat: 32.42, lon: 53.68, region: "ตะวันออกกลาง" }
+    ];
+
+    const WORLD_NEIGHBORS = {
+      "THA": ["MMR", "LAO", "KHM", "MYS"],
+      "LAO": ["THA", "MMR", "CHN", "VNM", "KHM"],
+      "MMR": ["THA", "LAO", "CHN", "IND"],
+      "KHM": ["THA", "LAO", "VNM"],
+      "MYS": ["THA", "IDN", "SGP", "BRN"],
+      "VNM": ["CHN", "LAO", "KHM"],
+      "CHN": ["RUS", "MNG", "KAZ", "KGZ", "TJK", "AFG", "PAK", "IND", "NPL", "BTN", "MMR", "LAO", "VNM", "PRK"],
+      "USA": ["CAN", "MEX"],
+      "CAN": ["USA"],
+      "MEX": ["USA", "GTM", "BLZ"],
+      "FRA": ["ESP", "AND", "MCO", "ITA", "CHE", "DEU", "LUX", "BEL"],
+      "DEU": ["DNK", "POL", "CZE", "AUT", "CHE", "FRA", "LUX", "BEL", "NLD"],
+      "ESP": ["PRT", "FRA", "AND"],
+      "PRT": ["ESP"],
+      "ITA": ["FRA", "CHE", "AUT", "SVN", "SMR", "VAT"],
+      "BRA": ["URY", "ARG", "PRY", "BOL", "PER", "COL", "VEN", "GUY", "SUR", "GUF"],
+      "ARG": ["CHL", "BOL", "PRY", "BRA", "URY"]
+    };
+
+    function getActiveDataset() {
+      return currentMode === 'world' ? WORLD_COUNTRIES : THAILAND_PROVINCES;
+    }
+
+    function areBordersConnected(id1, id2) {
+      if (!id1 || !id2 || id1 === id2) return false;
+      const dict = currentMode === 'world' ? WORLD_NEIGHBORS : PROVINCE_NEIGHBORS;
+      const list = dict[id1];
+      if (list && list.includes(id2)) return true;
+      const reverseList = dict[id2];
+      if (reverseList && reverseList.includes(id1)) return true;
+      return false;
+    }
+
+    let targetItem = null;
+    let guesses = [];
+    let gameOver = false;
+    let sortClosest = true; // Default: Closest at the top
+    let soundEnabled = true;
+    let synth = null;
+
+    let map = null;
+    let geojsonLayer = null;
+    let featureLayers = {};
+
+    function calcDistanceKm(lat1, lon1, lat2, lon2) {
+      if (lat1 === lat2 && lon1 === lon2) return 0;
+      const R = 6371; // Earth's mean radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return Math.round(R * c);
+    }
+
+    // คำนวณระยะห่างตามหลักภูมิศาสตร์จริง (ระยะห่างพรมแดนถึงพรมแดน)
+    function calcGeographicDistance(item1, item2, isNeighbor) {
+      // 1. ถ้าเป็นพื้นที่เดียวกัน หรือมีพรมแดนสัมผัสติดกัน ระยะทางคือ 0 กม.
+      if (item1.id === item2.id || isNeighbor) {
+        return 0;
+      }
+
+      // 2. ถ้ามี Layer โพลีกอนในแผนที่ ให้คำนวณระยะทางจุดที่ใกล้กันที่สุดระหว่างสองขอบเขต
+      try {
+        const layer1 = featureLayers[item1.id];
+        const layer2 = featureLayers[item2.id];
+
+        if (layer1 && layer2 && typeof layer1.getLatLngs === 'function' && typeof layer2.getLatLngs === 'function') {
+          const extractCoords = (latlngs) => {
+            let pts = [];
+            if (!Array.isArray(latlngs)) return pts;
+            const flatten = (arr) => {
+              if (arr.length && typeof arr[0].lat === 'number') {
+                const step = Math.max(1, Math.floor(arr.length / 30));
+                for (let i = 0; i < arr.length; i += step) pts.push(arr[i]);
+              } else {
+                arr.forEach(sub => flatten(sub));
+              }
+            };
+            flatten(latlngs);
+            return pts;
+          };
+
+          const pts1 = extractCoords(layer1.getLatLngs());
+          const pts2 = extractCoords(layer2.getLatLngs());
+
+          if (pts1.length > 0 && pts2.length > 0) {
+            let minKm = Infinity;
+            for (let p1 of pts1) {
+              for (let p2 of pts2) {
+                const d = calcDistanceKm(p1.lat, p1.lng, p2.lat, p2.lng);
+                if (d < minKm) minKm = d;
+              }
+            }
+            if (minKm !== Infinity) return Math.max(1, minKm);
+          }
+        }
+      } catch (err) {}
+
+      // Fallback: ใช้ระยะห่างระหว่างจุดศูนย์กลาง
+      return calcDistanceKm(item1.lat, item1.lon, item2.lat, item2.lon);
+    }
+
+    function getGuessColor(itemId, targetId, distance, isNeighbor) {
+      if (itemId === targetId) return '#16a34a'; // Green (Correct)
+      if (isNeighbor || distance === 0) return '#dc2626'; // Red ONLY if border connected (0 km)
+
+      if (currentMode === 'world') {
+        if (distance < 1200) return '#ea580c';
+        if (distance < 2500) return '#f59e0b';
+        if (distance < 5000) return '#facc15';
+        if (distance < 9000) return '#94a3b8';
+        return '#cbd5e1';
+      } else {
+        if (distance < 180) return '#ea580c';
+        if (distance < 380) return '#f59e0b';
+        if (distance < 650) return '#facc15';
+        if (distance < 1000) return '#94a3b8';
+        return '#cbd5e1';
+      }
+    }
+
+    function getColorEmoji(itemId, targetId, distance, isNeighbor) {
+      if (itemId === targetId) return '🟩';
+      if (isNeighbor || distance === 0) return '🟥';
+      if (currentMode === 'world') {
+        if (distance < 1200) return '🟧';
+        if (distance < 2500) return '🟨';
+        if (distance < 5000) return '🟨';
+        if (distance < 9000) return '⬜';
+        return '🟦';
+      } else {
+        if (distance < 180) return '🟧';
+        if (distance < 380) return '🟨';
+        if (distance < 650) return '🟨';
+        if (distance < 1000) return '⬜';
+        return '🟦';
+      }
+    }
+
+    function pickRandomTarget() {
+      const dataset = getActiveDataset();
+      const randomIndex = Math.floor(Math.random() * dataset.length);
+      return dataset[randomIndex];
+    }
+
+    function playNote(distance, isNeighbor) {
+      if (!soundEnabled) return;
+      try {
+        if (!synth) {
+          synth = new Tone.PolySynth(Tone.Synth).toDestination();
+        }
+        const now = Tone.now();
+        if (distance === 0) {
+          // Victory Fanfare
+          synth.triggerAttackRelease(["C5", "E5", "G5"], "8n", now);
+          synth.triggerAttackRelease(["E5", "G5", "C6"], "4n", now + 0.18);
+        } else if (isNeighbor) {
+          // Border touch - hot dramatic alert
+          synth.triggerAttackRelease(["F4", "A4", "C5"], "8n", now);
+        } else if (distance < 300) {
+          // Warm harmonic chime
+          synth.triggerAttackRelease(["D4", "F#4"], "16n", now);
+        } else if (distance < 800) {
+          synth.triggerAttackRelease("G3", "16n", now);
+        } else {
+          // Low distant thud
+          synth.triggerAttackRelease("C3", "16n", now);
+        }
+      } catch (e) {}
+    }
+
+    function triggerAnswerEffects(item, color, distance, isNeighbor) {
+      const mapWrapper = document.getElementById('map-container-wrapper');
+      const inputCard = document.getElementById('input-card');
+      const fxOverlay = document.getElementById('map-fx-overlay');
+      const floatingBadge = document.getElementById('guess-floating-badge');
+
+      // 1. Screen / Card shake or glow
+      if (distance === 0) {
+        inputCard.classList.add('ring-4', 'ring-emerald-500');
+        setTimeout(() => inputCard.classList.remove('ring-4', 'ring-emerald-500'), 1500);
+      } else if (isNeighbor || distance < 200) {
+        inputCard.classList.add('ring-2', 'ring-rose-500');
+        setTimeout(() => inputCard.classList.remove('ring-2', 'ring-rose-500'), 800);
+      } else if (distance > 1500) {
+        mapWrapper.classList.add('shake-anim');
+        setTimeout(() => mapWrapper.classList.remove('shake-anim'), 400);
+      }
+
+      // 2. Map Shockwave Ripple Effect
+      if (map && item) {
+        try {
+          const point = map.latLngToContainerPoint([item.lat, item.lon]);
+          if (point && point.x >= 0 && point.x <= mapWrapper.clientWidth && point.y >= 0 && point.y <= mapWrapper.clientHeight) {
+            const ripple = document.createElement('div');
+            ripple.className = 'fx-ripple absolute rounded-full border-4 pointer-events-none';
+            ripple.style.left = `${point.x - 30}px`;
+            ripple.style.top = `${point.y - 30}px`;
+            ripple.style.width = '60px';
+            ripple.style.height = '60px';
+            ripple.style.borderColor = color;
+            ripple.style.backgroundColor = `${color}33`;
+            fxOverlay.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 1200);
+          }
+        } catch (err) {}
+      }
+
+      // 3. Floating Floating Toast Badge
+      if (floatingBadge) {
+        let badgeText = '';
+        if (item.id === targetItem.id) {
+          badgeText = '🎯 ถูกต้องแล้ว! (0 กม.)';
+        } else if (isNeighbor) {
+          badgeText = `🔥 ติดพรมแดน (0 กม.)`;
+        } else {
+          badgeText = `📍 ${distance.toLocaleString()} กม.`;
+        }
+        floatingBadge.textContent = badgeText;
+        floatingBadge.style.backgroundColor = color;
+        floatingBadge.classList.remove('opacity-0', 'scale-90', '-top-3');
+        floatingBadge.classList.add('opacity-100', 'scale-100', '-top-7');
+
+        setTimeout(() => {
+          floatingBadge.classList.remove('opacity-100', 'scale-100', '-top-7');
+          floatingBadge.classList.add('opacity-0', 'scale-90', '-top-3');
+        }, 1800);
+      }
+    }
+
+    function initMap() {
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        dragging: false,
+        touchZoom: false
+      });
+      loadMapForMode();
+    }
+
+    async function loadMapForMode() {
+      featureLayers = {};
+      if (geojsonLayer) {
+        map.removeLayer(geojsonLayer);
+        geojsonLayer = null;
+      }
+
+      const wrapper = document.getElementById('map-container-wrapper');
+      const worldHint = document.getElementById('world-map-hint');
+
+      if (currentMode === 'world') {
+        wrapper.className = "relative w-full h-[540px] sm:h-[620px] lg:h-[700px] rounded-2xl overflow-hidden border-2 border-slate-300 dark:border-slate-800 map-card-shadow draggable-map";
+        if (worldHint) worldHint.classList.remove('hidden');
+        map.dragging.enable();
+        map.touchZoom.enable();
+        map.scrollWheelZoom.enable();
+        map.doubleClickZoom.enable();
+        map.setView([20, 0], 2);
+        await loadWorldGeoJson();
+      } else {
+        wrapper.className = "relative w-full h-[540px] sm:h-[620px] lg:h-[700px] rounded-2xl overflow-hidden border-2 border-slate-300 dark:border-slate-800 map-card-shadow locked-map";
+        if (worldHint) worldHint.classList.add('hidden');
+        map.dragging.disable();
+        map.touchZoom.disable();
+        map.scrollWheelZoom.disable();
+        map.doubleClickZoom.disable();
+        map.setView([13.2, 101.2], 5.8);
+        await loadThailandGeoJson();
+      }
+    }
+
+    async function loadThailandGeoJson() {
+      const geojsonUrls = [
+        "https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json",
+        "https://raw.githubusercontent.com/wichit2s/geojson-thailand/master/provinces.geojson"
+      ];
+
+      for (let url of geojsonUrls) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            renderGeoJsonLayer(data, false);
+            return;
+          }
+        } catch (err) {}
+      }
+      renderFallbackVectors();
+    }
+
+    async function loadWorldGeoJson() {
+      const worldUrls = [
+        "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
+        "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json"
+      ];
+
+      for (let url of worldUrls) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            renderGeoJsonLayer(data, true);
+            return;
+          }
+        } catch (err) {}
+      }
+      renderFallbackVectors();
+    }
+
+    function renderGeoJsonLayer(geojsonData, isWorld) {
+      if (geojsonLayer) {
+        map.removeLayer(geojsonLayer);
+      }
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const defaultFill = isDark ? '#334155' : '#f8fafc';
+      const defaultBorder = isDark ? '#475569' : '#94a3b8';
+
+      geojsonLayer = L.geoJSON(geojsonData, {
+        interactive: false,
+        style: function () {
+          return {
+            fillColor: defaultFill,
+            weight: 1.2,
+            opacity: 1,
+            color: defaultBorder,
+            fillOpacity: 0.95
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          if (isWorld) {
+            const iso = feature.id || feature.properties.ISO_A3 || feature.properties.iso_a3 || feature.properties.adm0_a3;
+            const name = feature.properties.name || feature.properties.NAME || feature.properties.admin || '';
+            const matched = WORLD_COUNTRIES.find(c => c.id === iso || cleanName(c.en) === cleanName(name) || cleanName(c.th) === cleanName(name));
+            if (matched) featureLayers[matched.id] = layer;
+          } else {
+            const name = feature.properties.name || feature.properties.NAME_1 || feature.properties.provinceName || feature.properties.pro_th || '';
+            const matched = THAILAND_PROVINCES.find(p => cleanName(p.th) === cleanName(name) || cleanName(p.en) === cleanName(name));
+            if (matched) featureLayers[matched.id] = layer;
+          }
+        }
+      }).addTo(map);
+
+      guesses.forEach(g => highlightFeature(g.item.id, g.color));
+    }
+
+    function renderFallbackVectors() {
+      const isDark = document.documentElement.classList.contains('dark');
+      const defaultFill = isDark ? '#334155' : '#f8fafc';
+      const defaultBorder = isDark ? '#475569' : '#94a3b8';
+      const items = getActiveDataset();
+
+      items.forEach(p => {
+        if (!featureLayers[p.id]) {
+          const radius = currentMode === 'world' ? 320000 : 28000;
+          const circle = L.circle([p.lat, p.lon], {
+            radius: radius,
+            interactive: false,
+            fillColor: defaultFill,
+            color: defaultBorder,
+            weight: 1.5,
+            opacity: 1,
+            fillOpacity: 0.95
+          }).addTo(map);
+          featureLayers[p.id] = circle;
+        }
+      });
+    }
+
+    function highlightFeature(itemId, color) {
+      const layer = featureLayers[itemId];
+      if (layer && typeof layer.setStyle === 'function') {
+        layer.setStyle({
+          fillColor: color,
+          fillOpacity: 1,
+          color: '#1e293b',
+          weight: 1.8
+        });
+        if (typeof layer.bringToFront === 'function') {
+          layer.bringToFront();
+        }
+      }
+    }
+
+    function cleanName(str) {
+      return (str || '')
+        .replace(/^(จังหวัด|จ\.)\s*/, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function findItemByName(input) {
+      const clean = cleanName(input);
+      if (!clean) return null;
+      const list = getActiveDataset();
+
+      return list.find(p => {
+        return cleanName(p.th) === clean || 
+               cleanName(p.en) === clean ||
+               p.th === input ||
+               p.en.toLowerCase() === input.toLowerCase();
+      });
+    }
+
+    function handleGuessSubmit() {
+      const inputEl = document.getElementById('guess-input');
+      const val = inputEl.value.trim();
+      const statusEl = document.getElementById('status-message');
+
+      if (!val) {
+        statusEl.innerHTML = `<span class="text-amber-500">กรุณาพิมพ์ชื่อก่อนกดทาย</span>`;
+        return;
+      }
+
+      const item = findItemByName(val);
+      if (!item) {
+        statusEl.innerHTML = `<span class="text-rose-500 font-medium">ไม่พบ "${val}" ในโหมดนี้ (กรุณาเลือกจากรายชื่อที่แนะนำ)</span>`;
+        playNote(1500, false);
+        return;
+      }
+
+      const already = guesses.find(g => g.item.id === item.id);
+      if (already) {
+        statusEl.innerHTML = `<span class="text-amber-500 font-medium">คุณเคยทาย "${item.th}" ไปแล้ว!</span>`;
+        inputEl.value = '';
+        return;
+      }
+
+      const isNeighbor = areBordersConnected(item.id, targetItem.id);
+      const isCorrect = item.id === targetItem.id;
+      // จังหวัดติดกันระยะทางตามภูมิศาสตร์คือ 0 กม.
+      const distance = calcGeographicDistance(item, targetItem, isNeighbor);
+      const color = getGuessColor(item.id, targetItem.id, distance, isNeighbor);
+
+      const guessObj = {
+        item,
+        distance,
+        isNeighbor,
+        isCorrect,
+        color,
+        index: guesses.length + 1
+      };
+
+      guesses.push(guessObj);
+      inputEl.value = '';
+      closeAutocomplete();
+
+      // Audio & Visual Effects Trigger
+      playNote(distance, isNeighbor);
+      triggerAnswerEffects(item, color, distance, isNeighbor);
+      highlightFeature(item.id, color);
+      renderGuesses(item.id);
+
+      if (isCorrect) {
+        handleWin();
+      } else {
+        if (isNeighbor) {
+          statusEl.innerHTML = `<span class="text-red-600 dark:text-red-400 font-bold">🔥 ${item.th}: มีพรมแดนติดกับเป้าหมาย! (0 กม.)</span>`;
+        } else {
+          statusEl.innerHTML = `<span style="color: ${color}; font-weight: 600;">${item.th}</span>: ห่าง ${distance.toLocaleString()} กม.`;
+        }
+      }
+    }
+
+    function renderGuesses(lastGuessedId = null) {
+      const container = document.getElementById('guesses-container');
+      const countEl = document.getElementById('guess-count');
+      countEl.textContent = guesses.length;
+
+      if (guesses.length === 0) {
+        container.innerHTML = `
+          <div id="empty-guesses-placeholder" class="py-16 text-center text-slate-400 dark:text-slate-500 text-sm">
+            <span class="block text-3xl mb-2">🗺️</span>
+            ยังไม่มีข้อมูลการทาย<br>พิมพ์ชื่อในช่องด้านบนได้เลย!
+          </div>
+        `;
+        return;
+      }
+
+      let displayList = [...guesses];
+      if (sortClosest) {
+        // เรียงตามระยะทางใกล้สุด (0 กม. จะอยู่บนสุด โดยตัวที่ถูกเป้าหมายจะอยู่บนสุด ตามด้วยติดแดน 0 กม.)
+        displayList.sort((a, b) => {
+          if (a.distance !== b.distance) return a.distance - b.distance;
+          if (a.isCorrect) return -1;
+          if (b.isCorrect) return 1;
+          if (a.isNeighbor && !b.isNeighbor) return -1;
+          if (!a.isNeighbor && b.isNeighbor) return 1;
+          return a.index - b.index;
+        });
+      } else {
+        displayList.reverse();
+      }
+
+      // Render guesses with entrance animation for newest item
+      container.innerHTML = displayList.map(g => {
+        const isNew = g.item.id === lastGuessedId;
+        let neighborBadge = g.isNeighbor ? `<span class="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 rounded border border-red-300 dark:border-red-800 animate-pulse">ติดแดน (0 กม.)</span>` : '';
+        let extraInfo = g.item.region ? `ภาค${g.item.region}` : g.item.en;
+        const animClass = isNew ? 'guess-row-anim bg-blue-50/60 dark:bg-blue-900/20' : '';
+
+        let distanceDisplay = '';
+        if (g.isCorrect) {
+          distanceDisplay = '<span class="text-emerald-600 font-bold">ถูกแล้ว! 🎯 (0 กม.)</span>';
+        } else if (g.isNeighbor) {
+          distanceDisplay = '<span class="text-rose-600 dark:text-rose-400 font-bold">0 กม.</span>';
+        } else {
+          distanceDisplay = g.distance.toLocaleString() + ' กม.';
+        }
+
+        return `
+          <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition duration-150 ${animClass}">
+            <div class="flex items-center space-x-3">
+              <span class="w-4 h-4 rounded-md inline-block shadow-sm shrink-0 transition-transform ${isNew ? 'scale-125' : ''}" style="background-color: ${g.color};"></span>
+              <div>
+                <span class="font-medium text-slate-900 dark:text-white font-thai text-sm">${g.item.th}</span>
+                ${neighborBadge}
+                <span class="text-xs text-slate-400 ml-1">(${extraInfo})</span>
+              </div>
+            </div>
+            <div class="flex items-center">
+              <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                ${distanceDisplay}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function handleWin() {
+      gameOver = true;
+      document.getElementById('guess-input').disabled = true;
+      document.getElementById('btn-submit').disabled = true;
+      document.getElementById('status-message').innerHTML = `
+        <span class="text-emerald-600 dark:text-emerald-400 font-bold text-base">
+          🎉 ถูกต้องแล้ว! คำตอบปริศนาคือ "${targetItem.th}"
+        </span>
+      `;
+
+      try {
+        confetti({ particleCount: 130, spread: 80, origin: { y: 0.6 } });
+      } catch (e) {}
+
+      saveStats(guesses.length);
+
+      setTimeout(() => {
+        document.getElementById('win-province-name').textContent = targetItem.th;
+        document.getElementById('win-guess-count').textContent = guesses.length;
+        openModal('modal-win');
+      }, 700);
+    }
+
+    function getStatsKey() {
+      return `globle_stats_${currentMode}`;
+    }
+
+    function loadStats() {
+      const raw = localStorage.getItem(getStatsKey());
+      if (raw) {
+        try { return JSON.parse(raw); } catch (e) {}
+      }
+      return { played: 0, won: 0, streak: 0, maxStreak: 0, totalGuesses: 0 };
+    }
+
+    function saveStats(guessCount) {
+      const s = loadStats();
+      s.played += 1;
+      s.won += 1;
+      s.streak += 1;
+      s.maxStreak = Math.max(s.maxStreak, s.streak);
+      s.totalGuesses += guessCount;
+      localStorage.setItem(getStatsKey(), JSON.stringify(s));
+      updateStatsUI();
+    }
+
+    function updateStatsUI() {
+      const s = loadStats();
+      const labels = { province: "จังหวัด", world: "ประเทศ" };
+      document.getElementById('stat-mode-label').textContent = labels[currentMode] || "จังหวัด";
+      document.getElementById('stat-played').textContent = s.played;
+      document.getElementById('stat-winrate').textContent = s.played > 0 ? Math.round((s.won / s.played) * 100) + '%' : '0%';
+      document.getElementById('stat-streak').textContent = s.streak;
+      document.getElementById('stat-maxstreak').textContent = s.maxStreak;
+      document.getElementById('stat-avg-guesses').textContent = s.won > 0 ? (s.totalGuesses / s.won).toFixed(1) + ' ครั้ง' : '0 ครั้ง';
+    }
+
+    function generateShareText() {
+      const emojis = guesses.map(g => getColorEmoji(g.item.id, targetItem.id, g.distance, g.isNeighbor)).join('');
+      const modeTitles = { province: "จังหวัดในไทย", world: "ประเทศทั่วโลก" };
+      return `🧭 Globle (${modeTitles[currentMode]})\n` +
+             `ผู้พัฒนา: เนม วชิรวิทย์\n` +
+             `ทายถูกใน ${guesses.length} ครั้ง!\n` +
+             `${emojis} 🟩`;
+    }
+
+    function copyToClipboard() {
+      const text = generateShareText();
+      const toast = document.getElementById('copy-toast');
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      try {
+        document.execCommand('copy');
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 2500);
+      } catch (err) {}
+      document.body.removeChild(el);
+    }
+
+    function setupAutocomplete() {
+      const input = document.getElementById('guess-input');
+      const list = document.getElementById('autocomplete-list');
+
+      input.addEventListener('input', () => {
+        const query = cleanName(input.value);
+        if (!query) {
+          closeAutocomplete();
+          return;
+        }
+
+        const items = getActiveDataset();
+        const filtered = items.filter(p => {
+          return cleanName(p.th).includes(query) || cleanName(p.en).includes(query);
+        });
+
+        if (filtered.length === 0) {
+          list.innerHTML = `<div class="p-3 text-xs text-slate-400 text-center font-thai">ไม่พบข้อมูลที่ตรงกัน</div>`;
+          list.classList.remove('hidden');
+          return;
+        }
+
+        list.innerHTML = filtered.slice(0, 8).map(p => {
+          const detail = p.region ? `ภาค${p.region}` : p.en;
+          return `
+            <div class="px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center transition font-thai" data-name="${p.th}">
+              <span class="text-sm font-medium text-slate-900 dark:text-white">${p.th}</span>
+              <span class="text-xs text-slate-400 font-sans">${p.en} (${detail})</span>
+            </div>
+          `;
+        }).join('');
+
+        list.classList.remove('hidden');
+
+        list.querySelectorAll('div[data-name]').forEach(item => {
+          item.addEventListener('click', () => {
+            input.value = item.getAttribute('data-name');
+            closeAutocomplete();
+            handleGuessSubmit();
+          });
+        });
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAutocomplete();
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !list.contains(e.target)) {
+          closeAutocomplete();
+        }
+      });
+    }
+
+    function closeAutocomplete() {
+      const list = document.getElementById('autocomplete-list');
+      list.classList.add('hidden');
+      list.innerHTML = '';
+    }
+
+    function openModal(id) {
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function switchMode(newMode) {
+      if (currentMode === newMode) return;
+      currentMode = newMode;
+
+      // Update Tab Styles
+      document.querySelectorAll('.mode-tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-mode') === newMode) {
+          btn.className = "mode-tab-btn px-4 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-blue-600 dark:text-sky-300 shadow-sm transition";
+        } else {
+          btn.className = "mode-tab-btn px-4 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition";
+        }
+      });
+
+      // Update Badges & Placeholders
+      const badgeEl = document.getElementById('mode-badge');
+      const inputEl = document.getElementById('guess-input');
+      const heatmapRule = document.getElementById('heatmap-rule-text');
+
+      if (newMode === 'province') {
+        badgeEl.textContent = 'จังหวัด';
+        inputEl.placeholder = 'พิมพ์ชื่อจังหวัด เช่น เชียงใหม่, ยะลา...';
+        heatmapRule.textContent = '🔥 ยิ่งใกล้ ยิ่งแดงจัด (ติดพรมแดน = 0 กม.)';
+      } else if (newMode === 'world') {
+        badgeEl.textContent = 'โลก';
+        inputEl.placeholder = 'พิมพ์ชื่อประเทศ เช่น ญี่ปุ่น, สเปน, บราซิล...';
+        heatmapRule.textContent = '🔥 ยิ่งใกล้ ยิ่งแดงจัด (ติดพรมแดน = 0 กม.)';
+      }
+
+      loadMapForMode();
+      resetGame();
+    }
+
+    function resetGame() {
+      targetItem = pickRandomTarget();
+      guesses = [];
+      gameOver = false;
+
+      document.getElementById('guess-input').disabled = false;
+      document.getElementById('btn-submit').disabled = false;
+      document.getElementById('guess-input').value = '';
+      document.getElementById('status-message').textContent = 'พิมพ์ชื่อเพื่อเริ่มทาย (เกมสุ่มใหม่ตลอดเวลา)';
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const defaultFill = isDark ? '#334155' : '#f8fafc';
+      const defaultBorder = isDark ? '#475569' : '#94a3b8';
+
+      if (geojsonLayer) {
+        geojsonLayer.setStyle({
+          fillColor: defaultFill,
+          weight: 1.2,
+          color: defaultBorder,
+          fillOpacity: 0.95
+        });
+      }
+
+      Object.values(featureLayers).forEach(layer => {
+        if (layer && typeof layer.setStyle === 'function') {
+          layer.setStyle({
+            fillColor: defaultFill,
+            weight: 1.2,
+            color: defaultBorder,
+            fillOpacity: 0.95
+          });
+        }
+      });
+
+      renderGuesses();
+      updateStatsUI();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      targetItem = pickRandomTarget();
+      setupAutocomplete();
+
+      // Mode Switchers
+      document.getElementById('mode-btn-province').addEventListener('click', () => switchMode('province'));
+      document.getElementById('mode-btn-world').addEventListener('click', () => switchMode('world'));
+
+      document.getElementById('guess-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleGuessSubmit();
+      });
+
+      document.getElementById('btn-toggle-sort').addEventListener('click', (e) => {
+        sortClosest = !sortClosest;
+        e.target.textContent = sortClosest ? 'ระยะทางใกล้สุด (บนสุด)' : 'ตามลำดับที่ทาย';
+        renderGuesses();
+      });
+
+      document.getElementById('btn-theme').addEventListener('click', () => {
+        const html = document.documentElement;
+        if (html.classList.contains('dark')) {
+          html.classList.remove('dark');
+          localStorage.setItem('globle_th_theme', 'light');
+        } else {
+          html.classList.add('dark');
+          localStorage.setItem('globle_th_theme', 'dark');
+        }
+      });
+
+      if (localStorage.getItem('globle_th_theme') === 'dark' || (!localStorage.getItem('globle_th_theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+
+      document.getElementById('btn-sound').addEventListener('click', () => {
+        soundEnabled = !soundEnabled;
+        document.getElementById('icon-sound-on').classList.toggle('hidden', !soundEnabled);
+        document.getElementById('icon-sound-off').classList.toggle('hidden', soundEnabled);
+      });
+
+      document.getElementById('btn-help').addEventListener('click', () => openModal('modal-help'));
+      document.getElementById('btn-stats').addEventListener('click', () => {
+        updateStatsUI();
+        openModal('modal-stats');
+      });
+      document.getElementById('btn-restart-random').addEventListener('click', resetGame);
+
+      document.querySelectorAll('.modal-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const modal = e.target.closest('[id^="modal-"]');
+          if (modal) modal.classList.add('hidden');
+        });
+      });
+
+      const btnShare = document.getElementById('btn-share');
+      if (btnShare) {
+        btnShare.addEventListener('click', copyToClipboard);
+      }
+
+      const btnPlayAgain = document.getElementById('btn-play-again');
+      if (btnPlayAgain) {
+        btnPlayAgain.addEventListener('click', () => {
+          closeModal('modal-win');
+          resetGame();
+        });
+      }
+
+      updateStatsUI();
+    });
+  </script>
+</body>
+</html>
